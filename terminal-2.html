@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang='en' class=''>
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terminal</title>
+
+  <style>
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: "Courier New", monospace;
+      color: #fff;
+      background: #000084;
+      font-size: 13px;
+    }
+
+    #wrapper {
+      padding: .1em 5em 1em 1em;
+      line-height: 1;
+    }
+
+    #wrapper output {
+      clear: both;
+      width: 100%;
+    }
+
+    #wrapper output h3,
+    #wrapper output h2 {
+      margin: 0;
+    }
+
+    #wrapper output pre {
+      margin: 0;
+    }
+
+    #wrapper output p {
+      margin-top: .5em;
+      margin-bottom: .5em;
+    }
+
+    .input-line {
+      display: -webkit-box;
+      -webkit-box-orient: horizontal;
+      -webkit-box-align: stretch;
+      display: -moz-box;
+      -moz-box-orient: horizontal;
+      -moz-box-align: stretch;
+      display: box;
+      box-orient: horizontal;
+      box-align: stretch;
+      clear: both;
+      margin-top: 20px;
+    }
+
+    .input-line div:nth-child(2) {
+      -webkit-box-flex: 1;
+      -moz-box-flex: 1;
+      box-flex: 1;
+    }
+
+    .prompt {
+      white-space: nowrap;
+      color: #96b38a;
+      margin-right: 7px;
+      display: -webkit-box;
+      -webkit-box-pack: center;
+      -webkit-box-orient: vertical;
+      display: -moz-box;
+      -moz-box-pack: center;
+      -moz-box-orient: vertical;
+      display: box;
+      box-pack: center;
+      box-orient: vertical;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+    }
+
+    .cmdline {
+      outline: none;
+      background-color: transparent;
+      margin: 0;
+      width: 100%;
+      font: inherit;
+      border: none;
+      color: inherit;
+    }
+
+    .ls-files {
+      height: 45px;
+      -webkit-column-width: 100px;
+      -moz-column-width: 100px;
+      -o-column-width: 100px;
+      column-width: 100px;
+    }
+
+    .clock-container {
+      display:inline-block;
+      position: relative;
+      width: 200px;
+      vertical-align: middle;
+      overflow: hidden;
+    }
+
+    .clock-container>svg>circle {
+      stroke-width: 2px;
+      stroke: #fff;
+    }
+
+    .hour,
+    .min,
+    .sec {
+      stroke-width: 1px;
+      fill: #333;
+      stroke: #555;
+    }
+
+    .sec {
+      stroke: #f55;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="wrapper">
+    <output>
+			<h2>Terminal</h2>
+		</output>
+    <div id="input-line" class="input-line">
+      <div class="prompt">[user@Marshall] $</div>
+      <div><input class="cmdline" /></div>
+    </div>
+  </div>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js'></script>
+  <script>
+    var util = util || {};
+    util.toArray = function(list) {
+      return Array.prototype.slice.call(list || [], 0);
+    };
+
+    var Terminal = Terminal || function(cmdLineContainer, outputContainer) {
+      window.URL = window.URL || window.webkitURL;
+      window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
+
+      var cmdLine_ = document.querySelector(cmdLineContainer);
+      var output_ = document.querySelector(outputContainer);
+
+      const CMDS_ = [
+        'cat', 'clear', 'date', 'echo', 'help', 'uname', 'me', 'clock', 'home', 'twice'
+      ];
+
+
+      var fs_ = null;
+      var cwd_ = null;
+      var history_ = [];
+      var histpos_ = 0;
+      var histtemp_ = 0;
+
+      window.addEventListener('click', function(e) {
+        cmdLine_.focus();
+      }, false);
+
+      cmdLine_.addEventListener('click', inputTextClick_, false);
+      cmdLine_.addEventListener('keydown', historyHandler_, false);
+      cmdLine_.addEventListener('keydown', processNewCommand_, false);
+
+      //
+      function inputTextClick_(e) {
+        this.value = this.value;
+      }
+
+      //
+      function historyHandler_(e) {
+        if (history_.length) {
+          if (e.keyCode == 38 || e.keyCode == 40) {
+            if (history_[histpos_]) {
+              history_[histpos_] = this.value;
+            } else {
+              histtemp_ = this.value;
+            }
+          }
+
+          if (e.keyCode == 38) { // up
+            histpos_--;
+            if (histpos_ < 0) {
+              histpos_ = 0;
+            }
+          } else if (e.keyCode == 40) { // down
+            histpos_++;
+            if (histpos_ > history_.length) {
+              histpos_ = history_.length;
+            }
+          }
+
+          if (e.keyCode == 38 || e.keyCode == 40) {
+            this.value = history_[histpos_] ? history_[histpos_] : histtemp_;
+            this.value = this.value; // Sets cursor to end of input.
+          }
+        }
+      }
+
+      //
+      function processNewCommand_(e) {
+
+        if (e.keyCode == 9) { // tab
+          e.preventDefault();
+          // Implement tab suggest.
+        } else if (e.keyCode == 13) { // enter
+          // Save shell history.
+          if (this.value) {
+            history_[history_.length] = this.value;
+            histpos_ = history_.length;
+          }
+
+          // Duplicate current input and append to output section.
+          var line = this.parentNode.parentNode.cloneNode(true);
+          line.removeAttribute('id');
+          line.classList.add('line');
+          var input = line.querySelector('input.cmdline');
+          input.autofocus = false;
+          input.readOnly = true;
+          output_.appendChild(line);
+
+          if (this.value && this.value.trim()) {
+            var args = this.value.split(' ').filter(function(val, i) {
+              return val;
+            });
+            var cmd = args[0].toLowerCase();
+            args = args.splice(1); // Remove cmd from arg list.
+          }
+
+          execCMD(cmd, args);
+
+          window.scrollTo(0, getDocHeight_());
+          this.value = ''; // Clear/setup line for next input.
+        }
+      }
+
+      //
+      function formatColumns_(entries) {
+        var maxName = entries[0].name;
+        util.toArray(entries).forEach(function(entry, i) {
+          if (entry.name.length > maxName.length) {
+            maxName = entry.name;
+          }
+        });
+
+        var height = entries.length <= 3 ?
+          'height: ' + entries.length * 15 + 'px;' : '';
+
+        // 12px monospace font yields ~7px screen width.
+        var colWidth = maxName.length * 7;
+
+        return ['<div class="ls-files" style="-webkit-column-width:',
+          colWidth, 'px;', height, '">'
+        ];
+      }
+
+      //
+      function output(html) {
+        output_.insertAdjacentHTML('beforeEnd', '<p>' + html + '</p>');
+      }
+
+      // Cross-browser impl to get document's height.
+      function getDocHeight_() {
+        var d = document;
+        return Math.max(
+          Math.max(d.body.scrollHeight, d.documentElement.scrollHeight),
+          Math.max(d.body.offsetHeight, d.documentElement.offsetHeight),
+          Math.max(d.body.clientHeight, d.documentElement.clientHeight));
+
+      }
+
+      function execCMD(cmd, args) {
+        switch (cmd) {
+          case 'cat':
+            var url = args.join(' ');
+            if (!url) {
+              output('Usage: ' + cmd + ' https://s.codepen.io/...');
+              output('Example: ' + cmd + ' https://s.codepen.io/AndrewBarfield/pen/LEbPJx.js');
+              break;
+            }
+            $.get(url, function(data) {
+              var encodedStr = data.replace(/[\u00A0-\u9999<>\&]/gim, function(i) {
+                return '&#' + i.charCodeAt(0) + ';';
+              });
+              output('<pre>' + encodedStr + '</pre>');
+            });
+            break;
+          case 'clear':
+            output_.innerHTML = '';
+            this.value = '';
+            return;
+          case 'home':
+            output("<div>이동 중입니다...</div>");
+            location.href = "https://marshall-ku.com";
+            break;
+          case 'date':
+            output(new Date());
+            break;
+          case 'echo':
+            output(args.join(' '));
+            break;
+          case 'help':
+            output('<div class="ls-files">' + CMDS_.join('<br>') + '</div>');
+            break;
+          case 'uname':
+            output(navigator.appVersion);
+            break;
+          case 'me':
+            output("<br><strong>Marshall K</strong>");
+            output('<em>taengoo890309@naver.com | <a href="https://marshall-ku.com" target="blank" style="color:#c36d3c!important">https://marshall-ku.com</a></em>');
+            break;
+          case 'twice':
+            output("<br><strong>One in a million</strong>");
+            output("<br><img src=\"https://tistory4.daumcdn.net/tistory/2837190/skin/images/twice-logodraw.svg\" width=\"300\"");
+            break;
+          case 'clock':
+            output('<div class="clock-container"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45"/><g><rect class="hour" x="47.5" y="12.5" width="5" height="40" rx="2.5" ry="2.55" /><rect class="min" x="48.5" y="12.5" width="3" height="40" rx="2" ry="2"/><line class="sec" x1="50" y1="50" x2="50" y2="16" /></g></svg></div>');
+            break;
+          default:
+            if (cmd) {
+              output(cmd + ': command not found');
+            }
+        };
+      }
+
+      //
+      return {
+        output: output
+      };
+
+    };
+
+    function init() {
+      var term = new Terminal('#input-line .cmdline', '#wrapper output');
+      term.init()
+    }
+
+    function jsClock() {
+      function r(cls, deg) {
+        Array.from(document.querySelectorAll(`.${cls}`)).forEach(a => {
+          a.style.transform = `rotate(${deg})`
+        })
+        const d = new Date();
+        r("sec", 6 * d.getSeconds()),
+        r("min", 6 * d.getMinutes()),
+        r("hour", 30 * (d.getHours() % 12) + d.getMinutes() / 2)
+      }
+    }
+    
+    //# sourceURL=pen.js
+    init(), jsClock(), setInterval(function() {
+        jsClock()
+    }, 1000)
+  </script>
+</body>
+
+</html>
